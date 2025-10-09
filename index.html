@@ -1,12 +1,147 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>Monorail Tile Drag & Rotate</title>
+    <title>JS 보드게임</title>
+    <style>
+        #game-container {
+            display: flex;
+            gap: 20px;
+            padding: 20px;
+        }
+
+        #palette {
+            border: 2px solid #ccc;
+            padding: 10px;
+            width: 200px;
+        }
+
+        .tile {
+            width: 50px;
+            height: 50px;
+            margin: 10px 0;
+            text-align: center;
+            line-height: 50px;
+            font-weight: bold;
+            cursor: grab;
+            user-select: none;
+            background-color: #f0e68c; /* 카키색 */
+            border: 1px solid #aaa;
+        }
+
+        /* 드래그 중인 타일의 시각적 피드백 */
+        .is-dragging {
+            opacity: 0.5;
+        }
+
+        #board {
+            display: grid;
+            grid-template-columns: repeat(8, 60px); /* 8열, 셀 너비 60px */
+            grid-template-rows: repeat(8, 60px);   /* 8행, 셀 높이 60px */
+            width: 480px; /* 8 * 60px */
+            height: 480px;
+            border: 3px solid #333;
+        }
+
+        .board-cell {
+            width: 60px;
+            height: 60px;
+            border: 1px solid #ddd;
+            /* 체스보드 패턴을 위한 배경색 */
+            background-color: #fff;
+        }
+
+        .board-cell:nth-child(even):nth-child(2n + 1),
+        .board-cell:nth-child(odd):nth-child(2n):not(:last-child) {
+            /* 짝수 행의 홀수 칸과 홀수 행의 짝수 칸에 다른 배경색 적용 */
+        }
+
+        /* 놓을 위치 하이라이트! (핵심) */
+        .highlight {
+            box-shadow: 0 0 0 4px gold inset; /* 내부 테두리로 하이라이트 */
+            /* 또는 */
+            /* background-color: #aaffaa !important; */
+        }
+        #game-container {
+            display: flex;
+            gap: 20px;
+            padding: 20px;
+        }
+
+        #palette {
+            border: 2px solid #ccc;
+            padding: 10px;
+            width: 200px;
+        }
+
+        .tile {
+            width: 50px;
+            height: 50px;
+            margin: 10px 0;
+            text-align: center;
+            line-height: 50px;
+            font-weight: bold;
+            cursor: grab;
+            user-select: none;
+            background-color: #f0e68c;
+            border: 1px solid #aaa;
+        }
+
+        .is-dragging {
+            opacity: 0.5;
+        }
+
+        #board {
+            display: grid;
+            grid-template-columns: repeat(8, 60px);
+            grid-template-rows: repeat(8, 60px);
+            width: 480px;
+            height: 480px;
+            border: 3px solid #333;
+        }
+
+        .board-cell {
+            width: 60px;
+            height: 60px;
+            border: 1px solid #ddd;
+            background-color: #fff;
+        }
+
+        .highlight {
+            box-shadow: 0 0 0 4px gold inset;
+        }
+
+        /* 턴 관리 UI */
+        #turn-info {
+            margin-bottom: 10px;
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #333;
+        }
+        #palette button {
+            margin-top: 10px;
+            padding: 10px 15px;
+            cursor: pointer;
+            width: 100%;
+        }
+    </style>
 </head>
 <body>
-<canvas id="gameCanvas" width="512" height="700"></canvas>
-<button id="undoBtn">Undo Last Turn Tiles</button>
-<script type="module" src="index.js"></script>
+<div id="game-container">
+    <div id="palette">
+        <div id="turn-info">플레이어 턴</div>
+        <div id="timer-container" style="margin-bottom: 10px;">
+            타이머: <span id="timer-display">--:--</span>
+        </div>
+        <h2>타일 팔레트</h2>
+        <button id="reset-button">현재 턴 초기화</button>
+        <button id="next-turn-button">턴 넘기기 (AI 실행)</button>
+        <button id="incomplete-button">미완성 (승패 결정)</button>
+    </div>
+
+    <div id="board">
+    </div>
+</div>
+<script src="index.js"></script>
 </body>
 </html>
