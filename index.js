@@ -3,7 +3,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const palette = document.getElementById('palette');
     const resetButton = document.getElementById('reset-button');
     const nextTurnButton = document.getElementById('next-turn-button');
+    const incompleteButton = document.getElementById('incomplete-button');
     const turnInfo = document.getElementById('turn-info');
+    const timerDisplay = document.getElementById('timer-display');
 
     const BOARD_SIZE = 8;
     const MAX_NEW_TILES = 3;
@@ -14,9 +16,15 @@ document.addEventListener('DOMContentLoaded', () => {
         { row: 4, col: 5, index: 37, type: 'A' }
     ];
 
-    // 타일 색상 상수 정의
-    const INITIAL_TILE_COLOR = '#66cdaa'; // 초기 배치 타일 색상
-    const GENERAL_TILE_COLOR = '#f0e68c'; // 플레이어 및 AI가 놓는 일반 타일 색상
+    // ✨ 이미지 경로 매핑 상수 추가 ✨
+    const TILE_IMAGE_MAP = {
+        'A': 'url(image/line.png)',
+        'B': 'url(image/angle.png)'
+    };
+
+    // 타일 색상 상수 정의 (이제 사용되지 않지만 유지를 위해 남겨둠)
+    const INITIAL_TILE_COLOR = '#66cdaa';
+    const GENERAL_TILE_COLOR = '#f0e68c';
 
     // ------------------- 게임 상태 관리 -------------------
     let isPlayerTurn = true;
@@ -24,6 +32,11 @@ document.addEventListener('DOMContentLoaded', () => {
     let placedTiles = [];
     let newTilesCount = 0;
     let turnStartTilesState = [];
+
+    // ------------------- 타이머 상태 관리 -------------------
+    let timerInterval = null;
+    let timeLeft = 60;
+
 
     // ------------------- 초기 보드 및 셀 생성 -------------------
     for (let i = 0; i < BOARD_SIZE * BOARD_SIZE; i++) {
@@ -35,6 +48,63 @@ document.addEventListener('DOMContentLoaded', () => {
         board.appendChild(cell);
     }
     const cells = document.querySelectorAll('.board-cell');
+
+    // ------------------- 타이머 및 승패 함수 -------------------
+    function declareWinner(initiator) {
+        alert(`${initiator}가 '미완성'을 선언했습니다! 승패 판정 로직을 실행합니다.`);
+    }
+
+    function updateTimer() {
+        const minutes = Math.floor(timeLeft / 60);
+        const seconds = timeLeft % 60;
+        if (timerDisplay) {
+            timerDisplay.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }
+
+        if (timeLeft <= 0) {
+            stopTimer();
+            alert("타이머 시간이 초과되었습니다!");
+        }
+
+        timeLeft--;
+    }
+
+    function startTimer() {
+        stopTimer();
+        timeLeft = 60;
+        updateTimer();
+        timerInterval = setInterval(updateTimer, 1000);
+        console.log("1분 타이머가 실행되었습니다.");
+    }
+
+    function stopTimer() {
+        if (timerInterval) {
+            clearInterval(timerInterval);
+            timerInterval = null;
+            if (timerDisplay) timerDisplay.textContent = `--:--`;
+        }
+    }
+
+    function handleIncomplete(initiator) {
+        if (initiator === 'AI') {
+            startTimer();
+        }
+        declareWinner(initiator);
+    }
+
+    // ------------------- 유틸리티 함수 (이미지 적용) -------------------
+
+    function setTileImage(tileElement, type) {
+        // ✨ 타일 유형에 따라 배경 이미지 적용
+        tileElement.style.backgroundImage = TILE_IMAGE_MAP[type] || 'none';
+        tileElement.textContent = `${type} 타일`; // 텍스트는 CSS로 숨김 처리됨
+    }
+
+    function removeHighlights() {
+        cells.forEach(cell => {
+            cell.classList.remove('highlight');
+        });
+    }
 
     // ------------------- 턴 관리 함수 -------------------
 
@@ -50,24 +120,28 @@ document.addEventListener('DOMContentLoaded', () => {
             const tile = document.createElement('div');
 
             tile.classList.add('tile');
-            tile.textContent = `${tileData.type} 타일`;
+            setTileImage(tile, tileData.type); // ✨ 이미지 적용
 
-            // 타일 유형에 따라 색상 결정
-            const isInitial = INITIAL_TILES_DATA.some(t => t.index === tileData.index);
-            tile.style.backgroundColor = isInitial ? INITIAL_TILE_COLOR : GENERAL_TILE_COLOR;
+            // 타일 색상 로직은 이미지 적용으로 대체되지만, 클래스는 유지할 수 있음
+            // const isInitial = INITIAL_TILES_DATA.some(t => t.index === tileData.index);
+            // tile.style.backgroundColor = isInitial ? INITIAL_TILE_COLOR : GENERAL_TILE_COLOR;
             tile.style.margin = '0';
 
             cell.appendChild(tile);
         });
 
         placedTiles = [...tilesData];
+
+        // ✨ 팔레트 타일에도 이미지 적용 ✨
+        palette.querySelectorAll('.draggable').forEach(tile => {
+            setTileImage(tile, tile.dataset.type);
+        });
     }
 
     function startTurn() {
         newTilesCount = 0;
         turnStartTilesState = JSON.parse(JSON.stringify(placedTiles));
 
-        // **오류 수정 후 DOM 요소 사용**
         if (turnInfo) {
             turnInfo.textContent = isPlayerTurn ? "플레이어 턴" : "AI 턴";
         }
@@ -75,6 +149,7 @@ document.addEventListener('DOMContentLoaded', () => {
         palette.style.pointerEvents = isPlayerTurn ? 'auto' : 'none';
         nextTurnButton.disabled = !isPlayerTurn;
         resetButton.disabled = !isPlayerTurn;
+        incompleteButton.disabled = !isPlayerTurn;
 
         if (!isPlayerTurn) {
             setTimeout(AITurn, 1000);
@@ -101,20 +176,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // ------------------- AI 로직 -------------------
 
     function AITurn() {
-        // 1. AI가 놓을 타일 개수를 1개에서 3개 사이에서 랜덤하게 결정
         const AITilesToPlace = Math.floor(Math.random() * MAX_NEW_TILES) + 1;
-        let placedThisTurn = 0; // 실제로 놓은 타일 수
+        let placedThisTurn = 0;
 
-        console.log(`AI가 총 ${AITilesToPlace}개의 타일을 놓으려고 시도합니다.`);
-
-        // 2. 결정된 개수만큼 타일 배치를 시도합니다.
         for (let i = 0; i < AITilesToPlace; i++) {
-            const currentCount = i; // 현재 턴에 놓으려는 타일의 순서 (0, 1, 2)
+            const currentCount = i;
             let validDrops = [];
 
-            // 유효한 모든 드롭 위치를 찾습니다.
             cells.forEach(cell => {
-                // currentCount에 따라 (규칙 1, 2, 3) 유효성 검사 적용
                 if (isValidPlacement(cell, currentCount)) {
                     const r = parseInt(cell.dataset.row);
                     const c = parseInt(cell.dataset.col);
@@ -127,42 +196,33 @@ document.addEventListener('DOMContentLoaded', () => {
                 const tileTypes = ['A', 'B'];
                 const randomType = tileTypes[Math.floor(Math.random() * tileTypes.length)];
 
-                // 3. 무작위로 하나의 유효 위치 선택
                 const randomIndex = Math.floor(Math.random() * validDrops.length);
                 const dropLocation = validDrops[randomIndex];
                 const targetCell = cells[dropLocation.index];
 
-                // 4. 타일 생성 및 배치
                 const tile = document.createElement('div');
                 tile.classList.add('tile');
-                tile.textContent = `${randomType} 타일`;
-                tile.style.backgroundColor = GENERAL_TILE_COLOR;
+
+                setTileImage(tile, randomType); // ✨ 이미지 적용
+
                 tile.style.margin = '0';
 
                 targetCell.appendChild(tile);
 
-                // 5. 상태 업데이트
                 placedTiles.push({ ...dropLocation, type: randomType  });
                 placedThisTurn++;
-                console.log(`[AI] ${i + 1}번째 타일 배치 성공: (${dropLocation.row}, ${dropLocation.col}).`);
             } else {
-                console.log(`[AI] ${i + 1}번째 타일을 놓을 수 있는 유효한 위치가 없어 배치를 중단합니다.`);
-                break; // 더 이상 놓을 수 없으므로 반복 중단
+                break;
             }
         }
 
         console.log(`AI 턴 완료. 총 ${placedThisTurn}개 배치.`);
 
-        // 턴 전환
         isPlayerTurn = true;
         startTurn();
     }
 
-    // ------------------- 이벤트 리스너 연결 -------------------
-    resetButton.addEventListener('click', resetCurrentTurn);
-    nextTurnButton.addEventListener('click', passTurn);
-
-    // ------------------- 드래그 & 드롭 이벤트 핸들러 (생략: 기존 로직 동일) -------------------
+    // ------------------- 드래그 & 드롭 이벤트 핸들러 -------------------
 
     // 팔레트의 드래그 시작/종료 이벤트
     palette.querySelectorAll('.draggable').forEach(tile => {
@@ -171,16 +231,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.preventDefault();
                 return;
             }
+
+            // draggedTile에 원본 타일의 복사본을 저장합니다.
             const clonedTile = e.target.cloneNode(true);
             clonedTile.classList.add('is-dragging');
             draggedTile = clonedTile;
+
             e.dataTransfer.setData('text/plain', e.target.dataset.type);
-            e.target.classList.add('is-dragging');
+            e.target.classList.add('is-dragging'); // 원본 타일에도 드래그 효과 적용
         });
 
         tile.addEventListener('dragend', (e) => {
             e.target.classList.remove('is-dragging');
             removeHighlights();
+            draggedTile = null;
         });
     });
 
@@ -205,21 +269,23 @@ document.addEventListener('DOMContentLoaded', () => {
             cell.classList.remove('highlight');
 
             if (isPlayerTurn && cell.children.length === 0 && draggedTile && isValidPlacement(cell, newTilesCount) && newTilesCount < MAX_NEW_TILES) {
-                // 1. 타일 배치
-                draggedTile.classList.remove('is-dragging');
-                draggedTile.style.margin = '0';
 
-                // 플레이어가 놓는 타일은 palette에 정의된 색상을 그대로 사용합니다.
-                // CSS에서 일반 타일 색상이 '#f0e68c'로 설정되어 있다면 이 색상으로 배치됩니다.
+                const type = draggedTile.dataset.type;
 
-                cell.appendChild(draggedTile);
+                const newTile = document.createElement('div');
+                newTile.classList.add('tile');
+
+                setTileImage(newTile, type); // ✨ 이미지 적용
+
+                newTile.style.margin = '0';
+
+                cell.appendChild(newTile);
 
                 // 2. 게임 상태 업데이트
                 newTilesCount++;
                 const r = parseInt(cell.dataset.row);
                 const c = parseInt(cell.dataset.col);
                 const idx = parseInt(cell.dataset.index);
-                const type = draggedTile.dataset.type;
                 placedTiles.push({ row: r, col: c, index: idx, type: type });
 
                 // 3. 다음 드래그를 위해 초기화
@@ -243,9 +309,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (currentCount === 0) {
             validNeighbors = placedTiles;
         } else if (currentCount === 1) {
-            validNeighbors = [placedTiles[currentPlacedCount - 1]];
+            if (currentPlacedCount === turnStartTilesState.length) {
+                validNeighbors = placedTiles;
+            } else {
+                validNeighbors = [placedTiles[placedTiles.length - 1]];
+            }
         } else if (currentCount === 2) {
-            validNeighbors = [placedTiles[currentPlacedCount - 1], placedTiles[currentPlacedCount - 2]];
+            if (currentPlacedCount < 2) return false;
+            validNeighbors = [placedTiles[placedTiles.length - 1], placedTiles[placedTiles.length - 2]];
         } else {
             return false;
         }
@@ -260,12 +331,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // ------------------- 유틸리티 함수 -------------------
-    function removeHighlights() {
-        cells.forEach(cell => {
-            cell.classList.remove('highlight');
-        });
-    }
+    // ------------------- 이벤트 리스너 연결 -------------------
+    resetButton.addEventListener('click', resetCurrentTurn);
+    nextTurnButton.addEventListener('click', passTurn);
+    incompleteButton.addEventListener('click', () => handleIncomplete('플레이어'));
 
     // 게임 시작
     redrawBoard(INITIAL_TILES_DATA);
